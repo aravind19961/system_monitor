@@ -140,9 +140,32 @@ long LinuxParser::ActiveJiffies(int pid) {
   }
   return jiffies;
 }
+vector<string> LinuxParser::CpuUtilization(){
+  string dummy;
+  vector<string> values;
+  ifstream cpu(kProcDirectory+kStatFilename);
+    if(cpu.is_open()){
 
+        getline(cpu,dummy);
+        istringstream data(dummy);
+        data>>dummy>>values[CPUStates::kUser_]>>values[CPUStates::kNice_]>>values[CPUStates::kSystem_]>>values[CPUStates::kIdle_]>>values[CPUStates::kIOwait_]>>values[CPUStates::kIRQ_]>>values[CPUStates::kSoftIRQ_]>>values[CPUStates::kSteal_]>>values[CPUStates::kGuest_]>>values[CPUStates::kGuestNice_];
+        
+    }
+  return values;     
 
+}
+long LinuxParser::ActiveJiffies() {
+  vector<string> time = CpuUtilization();
+  return (stol(time[CPUStates::kUser_]) + stol(time[CPUStates::kNice_]) +
+          stol(time[CPUStates::kSystem_]) + stol(time[CPUStates::kIRQ_]) +
+          stol(time[CPUStates::kSoftIRQ_]) + stol(time[CPUStates::kSteal_]) +
+          stol(time[CPUStates::kGuest_]) + stol(time[CPUStates::kGuestNice_]));
+}
 
+long LinuxParser::IdleJiffies() {
+  vector<string> time = CpuUtilization();
+  return (stol(time[CPUStates::kIdle_]) + stol(time[CPUStates::kIOwait_]));
+}
 
 // TODO: Read and return CPU utilization
 float LinuxParser::CpuUtilization(int pid) {
