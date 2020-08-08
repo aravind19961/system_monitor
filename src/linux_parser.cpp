@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
+#include <ctype.h>
 
 #include "linux_parser.h"
 
@@ -9,6 +10,12 @@ using std::stof;
 using std::string;
 using std::to_string;
 using std::vector;
+using namespace std;
+
+// void LinuxParser::getstatus(int pid){
+//   string rawdata;
+//   ifstream
+// }
 
 // DONE: An example of how to read data from the filesystem
 string LinuxParser::OperatingSystem() {
@@ -35,16 +42,17 @@ string LinuxParser::OperatingSystem() {
 
 // DONE: An example of how to read data from the filesystem
 string LinuxParser::Kernel() {
-  string os, kernel;
+  string os, kernel,version;
   string line;
   std::ifstream stream(kProcDirectory + kVersionFilename);
   if (stream.is_open()) {
     std::getline(stream, line);
     std::istringstream linestream(line);
-    linestream >> os >> kernel;
+    linestream >> os >> version >> kernel;
   }
   return kernel;
 }
+
 
 // BONUS: Update this to use std::filesystem
 vector<int> LinuxParser::Pids() {
@@ -56,7 +64,7 @@ vector<int> LinuxParser::Pids() {
     if (file->d_type == DT_DIR) {
       // Is every character of the name a digit?
       string filename(file->d_name);
-      if (std::all_of(filename.begin(), filename.end(), isdigit)) {
+      if (std::all_of(filename.begin(), filename.end(),::isdigit)) {
         int pid = stoi(filename);
         pids.push_back(pid);
       }
@@ -67,10 +75,47 @@ vector<int> LinuxParser::Pids() {
 }
 
 // TODO: Read and return the system memory utilization
-float LinuxParser::MemoryUtilization() { return 0.0; }
+float LinuxParser::MemoryUtilization() { 
+  string key,value;
+  float total,memtotal,memfree;
+  string rawdataline;//to be proccessed.
+  ifstream filedata(kProcDirectory+kMeminfoFilename);
+  if(filedata.is_open()){
+      while (std::getline(filedata,rawdataline))
+      {
+        istringstream reader(rawdataline);
+        while(reader>>key>>value){
+          if(key=="MemTotal:"){
+            memtotal=stof(value);
+          }
+          else if(key=="MemFree:"){
+            memfree=stof(value);
+          }
+          
+        }
+
+        
+      }
+    total=memtotal-memfree;
+
+    return total/memtotal;
+      
+
+  }
+  
+  return 0.0; }
 
 // TODO: Read and return the system uptime
-long LinuxParser::UpTime() { return 0; }
+long LinuxParser::UpTime() { 
+  string uptime1,uptime2;
+  string line;
+  ifstream fileopener(kProcDirectory+kUptimeFilename);
+  if (fileopener.is_open()){
+    getline(fileopener,line);
+    istringstream x(line);
+    x>>uptime1>>uptime2;
+  }
+  return stoi(uptime1); }
 
 // TODO: Read and return the number of jiffies for the system
 long LinuxParser::Jiffies() { return 0; }
@@ -86,30 +131,222 @@ long LinuxParser::ActiveJiffies() { return 0; }
 long LinuxParser::IdleJiffies() { return 0; }
 
 // TODO: Read and return CPU utilization
-vector<string> LinuxParser::CpuUtilization() { return {}; }
+float LinuxParser::CpuUtilization(int pid) {
+  ifstream myfile("/proc/uptime");
+  std::map<int,long> stats_processor;
+  float uptime,utime,stime,cutime,cstime,starttime;
+  string line,dummy;
+  if(myfile.is_open()){
+    getline(myfile,line);
+    istringstream ss(line);
+    ss>>dummy;
+    uptime=stof(dummy);
+    myfile.close();
+    ss.clear();
+  }
+  int x=1;
+  ifstream myfile2("/proc/"+to_string(pid)+"/stat");
+  if(myfile2.is_open()){
+      
+    while (getline(myfile2,line))
+    {
+      /* code */
+      istringstream my(line);
+      while (my>>dummy)
+      {
+        if(x==14||x==15||x==16||x==17||x==22){
+        stats_processor[x]=stol(dummy);
+        
+        }
+        x++;
+      }
+      
+      my.clear();
+    }
+    myfile2.close();
+      utime=stats_processor.at(14);
+      stime=stats_processor.at(15);
+      cutime=stats_processor.at(16);
+      cstime=stats_processor.at(17);
+      starttime=stats_processor.at(22);
+    float total_time=utime+stime;
+    
+    total_time=total_time+cutime+cstime;
+    float seconds=uptime-(starttime/sysconf(_SC_CLK_TCK));
+  
+    float cpu_usage =((total_time / sysconf(_SC_CLK_TCK))/seconds);
+    return cpu_usage;
+  }
+  
+  
+  
+   return 0; }
 
 // TODO: Read and return the total number of processes
-int LinuxParser::TotalProcesses() { return 0; }
+int LinuxParser::TotalProcesses() {
+  string key ,value;
+  int no_of_process;
+  string rawdata;
+  ifstream fileopener(kProcDirectory+kStatFilename);
+  if (fileopener.is_open()){
+    while(getline(fileopener,rawdata)){
+      istringstream reader(rawdata);
+      while(reader>>key>>value){
+        if(key=="processes"){
+          no_of_process=stoi(value);
+          return no_of_process;
+        }
+      }
+    }
+  }
+   return 0; }
 
 // TODO: Read and return the number of running processes
-int LinuxParser::RunningProcesses() { return 0; }
+int LinuxParser::RunningProcesses() { 
+  string key ,value,x;
+  int no_of_process;
+  string rawdata;
+  ifstream fileopener(kProcDirectory+kStatFilename);
+  if (fileopener.is_open()){
+    while(getline(fileopener,rawdata)){
+      istringstream reader(rawdata);
+      reader>>key>>value;
+        if(key=="procs_running"){
+          no_of_process=stoi(value);
+          return no_of_process;
+        }
+      }
+    }
+  return no_of_process;
+
+ }
 
 // TODO: Read and return the command associated with a process
 // REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::Command(int pid[[maybe_unused]]) { return string(); }
+string LinuxParser::Command(int pid) { 
+  
+  ifstream myfile("/proc/"+to_string(pid)+"/cmdline");
+  string line;
+  if(myfile.is_open()){
+
+      getline(myfile,line);
+      myfile.close();
+
+  }
+  
+  return line; }
 
 // TODO: Read and return the memory used by a process
 // REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::Ram(int pid[[maybe_unused]]) { return string(); }
+string LinuxParser::Ram(int pid[[maybe_unused]]) { 
+  
+  ifstream myfile("/proc/"+to_string(pid)+"/status");
+  string line,key,value;
+  if(myfile.is_open()){
+
+      while(getline(myfile,line)){
+        istringstream mydata(line);
+        mydata>>key>>value;
+        if(key=="VmSize:")
+        {
+          mydata.clear();
+          return to_string(stoi(value)/1024);
+        }
+
+      }
+      myfile.close();
+      
+
+  }
+  return string(); }
 
 // TODO: Read and return the user ID associated with a process
 // REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::Uid(int pid[[maybe_unused]]) { return string(); }
+string LinuxParser::Uid(int pid) {
+  ifstream pfiles("/proc/"+to_string(pid)+"/status");
+  string user,name,line;
+  if(pfiles.is_open()){
+    while(getline(pfiles,line)){
+      istringstream reader(line);
+      reader>>user>>name;
+      if(user=="Uid:"){
+        pfiles.close();
+        reader.clear();
+        break;
+      }
+    }
+  }
+  
+   return name; }
 
 // TODO: Read and return the user associated with a process
 // REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::User(int pid[[maybe_unused]]) { return string(); }
+string LinuxParser::User(int pid) {
+  
+  
+  ifstream ufiles("/etc/passwd");
+  string uname,variable,identifier,line;
+  if(ufiles.is_open()){
+      while(getline(ufiles,line)){
+        std::replace(line.begin(),line.end(),':',' ');
+        istringstream reader(line);
+        reader>>uname>>variable>>identifier;
+        if(identifier==LinuxParser::Uid(pid)){
+          
+          return uname;
+        }
+      }
+  }
+  
+  
+   return "string()"; }
 
 // TODO: Read and return the uptime of a process
 // REMOVE: [[maybe_unused]] once you define the function
-long LinuxParser::UpTime(int pid[[maybe_unused]]) { return 0; }
+long LinuxParser::UpTime(int pid) {
+  ifstream myfile("/proc/uptime");
+  std::map<int,long> stats_processor;
+  long uptime,utime,stime,cutime,cstime,starttime;
+  string line,dummy;
+  if(myfile.is_open()){
+    getline(myfile,line);
+    istringstream ss(line);
+    ss>>dummy;
+    uptime=stol(dummy);
+    myfile.close();
+    ss.clear();
+  }
+  int x=1;
+  ifstream myfile2("/proc/"+to_string(pid)+"/stat");
+  if(myfile2.is_open()){
+      
+    while (getline(myfile2,line))
+    {
+      /* code */
+      istringstream my(line);
+      while (my>>dummy)
+      {
+        if(x==14||x==15||x==16||x==17||x==22){
+        stats_processor[x]=stol(dummy);
+        
+        }
+        x++;
+      }
+      
+      my.clear();
+    }
+    myfile2.close();
+      utime=stats_processor.at(14);
+      stime=stats_processor.at(15);
+      cutime=stats_processor.at(16);
+      cstime=stats_processor.at(17);
+      starttime=stats_processor.at(22);
+    long total_time=utime+stime;
+    
+    total_time=total_time+cutime+cstime;
+    long seconds=uptime-(starttime/sysconf(_SC_CLK_TCK));
+  
+    return seconds;
+  }
+  return 0;
+ }
